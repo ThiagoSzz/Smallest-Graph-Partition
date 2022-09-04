@@ -1,3 +1,5 @@
+import igraph as ig
+
 def get_adjacency_list(distance_matrix):
     """Obtém a lista de adjacência do grafo a partir de
        uma matriz de distâncias entre os vértices
@@ -70,3 +72,29 @@ def get_path_fitness(v_set, adj_list, distance_matrix):
                 visited.append(i)
 
     return fitness
+
+
+def generate_graph(type, should_plot):
+    """Gera um grafo com n_nodes vértices e n_children filhos por vértice
+
+    Args:
+        type (str): tipo de grafo a ser gerado
+                    possíveis valores: https://igraph.org/c/doc/igraph-Generators.html#igraph_famous
+        should_plot (bool): se deve imprimir o grafo gerado
+
+    Returns:
+        lst, dict, int, int: matriz de distâncias, lista de adjacência,
+                             número de vértices e de arestas do grafo gerado
+    """
+
+    graph = ig.Graph.Famous(type)
+
+    if should_plot:
+        ig.plot(graph)
+    
+    distance_matrix = list((graph.get_adjacency()))
+    adj_list = get_adjacency_list(distance_matrix)
+    n_nodes = graph.vcount()
+    m_edges = graph.ecount()
+
+    return distance_matrix, adj_list, n_nodes, m_edges

@@ -1,19 +1,20 @@
 import utils
 import copy
-from random import randint
 import igraph as ig
+from math import ceil
+from random import randint
 
 """
     TODO:
     - leitura de dados do arquivo
     - considerar a distância máxima D entre os vértices (matriz de distâncias)
     - considerar o tamanho máximo T de subconjuntos
-    - arrumar a função de crossover
-    - arrumar a função de selection
+    - otimização: usar sets ao invés de listas
 
     LINKS:
     https://igraph.org/python/api/latest/   --> documentação igraph
     https://moodle.inf.ufrgs.br/pluginfile.php/183293/mod_resource/content/1/geneticos.pdf   --> slides algoritmos genéticos
+    https://igraph.org/c/doc/igraph-Generators.html#igraph_famous   --> tipos de grafos a gerar
 """
 
 def evaluate(individual):
@@ -68,13 +69,59 @@ def crossover(parent1, parent2, index):
         <list, list>: indivíduos-filho 1 e 2
     """
 
-    new_parent1 = copy.deepcopy(parent1[:index])
-    for item in parent2[index:]:
-        new_parent1.append(item)
+    # faz cópia dos pais em nova lista
+    new_parent1 = copy.deepcopy(parent1)
+    new_parent2 = copy.deepcopy(parent2)
 
-    new_parent2 = copy.deepcopy(parent2[:index])
-    for item in parent1[index:]:
-        new_parent2.append(item)
+    if len(parent1) == 1 and len(parent2) == 1:
+        # escolhe um cluster aleatório do primeiro pai
+        cross_pos1 = randint(0, len(parent1)-1)
+        cross_cluster1 = parent1[cross_pos1]
+
+        cross_cluster2 = None
+
+        found_cross = False
+
+        # procura no segundo pai um vizinho de um dos nodos do
+        # primeiro pai
+        for cluster in range(len(parent2)):
+            for node in parent2[cluster]:
+                for node_1 in parent1[cross_pos1]:
+                    for nbr in adj_list[node_1]:
+                        if node == nbr:
+                            cross_cluster2 = parent2[cluster]
+
+                            found_cross = True
+                            break
+            
+                    if found_cross:
+                        break
+
+                if found_cross:
+                    break
+
+            if found_cross:
+                break
+
+        # remove os nodos do cluster em que se encontra
+        # o vizinho no vetor do primeiro pai
+        for cluster in new_parent1:
+            for value in cross_cluster2:
+                if value in cluster:
+                    cluster.remove(value)
+
+        # remove os nodos do cluster em que se encontra
+        # o primero pai no vetor do segundo pai
+        for cluster in new_parent2:
+            for value in cross_cluster1:
+                if value in cluster:
+                    cluster.remove(value)
+
+        new_parent1.append(cross_cluster2)
+        new_parent1 = list(filter(lambda x: x, new_parent1))
+
+        new_parent2.append(cross_cluster1)
+        new_parent2 = list(filter(lambda x: x, new_parent2))
 
     return new_parent1, new_parent2
 
@@ -147,7 +194,7 @@ def mutate(individual, m):
 
 
 def populate(n_ind):
-    """Gera uma população com indivíduos randomizados
+    """Gera uma população com indivíduos gerados aleatoriamente
 
     Args:
         n_ind (num): quantidade de indivíduos a gerar
@@ -158,12 +205,19 @@ def populate(n_ind):
 
     lst_individuals = list()
 
-    min_cluster_size = 0.5
+    min_edge_cost = 1
+    max_edge_cost = 25
 
     # itera n_ind indivíduos
     for _ in range(n_ind):
         # gera um grafo com n_nodes vértices
         g = ig.Graph(n=n_nodes)
+
+        # gera pesos aleatórios para as arestas
+        edges_weight = list()
+
+        for _ in range(m_edges):
+            edges_weight.append(randint(min_edge_cost, max_edge_cost))
 
         # adiciona as arestas ao grafo
         visited = list()
@@ -175,10 +229,10 @@ def populate(n_ind):
                     visited.append((nbr, node))
 
         # efetua a 'clusterização'
-        d = ig.Graph.community_fastgreedy(g)
+        d = ig.Graph.community_fastgreedy(g, weights=edges_weight)
 
-        cluster_size = randint(int(n_nodes*min_cluster_size), n_nodes)
-        d = d.as_clustering(cluster_size)
+        cluster_amount = randint(ceil(n_nodes*min_cluster_amount), n_nodes)
+        d = d.as_clustering(cluster_amount)
         individual = utils.igraph_cluster_to_list(d)
 
         # verifica se o indivíduo gerado já existe
@@ -219,15 +273,16 @@ def selection(participants, k):
     return sel_participants
 
 
-def run_ga(g, n, k, m, e):
+def run_ga(g, n, k, m, e, debug):
     """Executa o algoritmo genético e retorna o indivíduo com o menor número de clusters
     
     Args:
         g (int): numero de gerações
         n (int): numero de indivíduos
-        k (int): numero de participantes do torneio
+        k (float): porcentagem de participantes do torneio
         m (float): probabilidade de mutação (entre 0 e 1, inclusive)
         e (bool): se vai haver elitismo
+        debug (bool): modo debug (mostra os prints)
 
     Returns:
         lst: melhor indivíduo encontrado
@@ -236,10 +291,9 @@ def run_ga(g, n, k, m, e):
     # inicializa a população aleatoriamente
     p = populate(n)
 
-    '''print('populacao: ')
-    for i in p:
-        print(i)
-    print()'''
+    if debug:
+        print('populacao:')
+        print(p, '\n')
 
     # para cada geração,
     for _ in range(g):
@@ -253,8 +307,12 @@ def run_ga(g, n, k, m, e):
 
         # enquanto o número de indivíduos da população for menor que "n"
         while len(p_nova) < n:
-            # seleciona k participantes
-            selected_participants = selection(p, k)
+            # seleciona k% participantes
+            selected_participants = selection(p, int(len(p)*k))
+
+            if debug:
+                print('selecao:')
+                print(selected_participants, '\n')
 
             # executa dois torneios com os k participantes
             p1 = tournament(selected_participants)
@@ -265,18 +323,37 @@ def run_ga(g, n, k, m, e):
             p_nova_linha.remove(p1)
             p2 = tournament(p_nova_linha)
 
+            if debug:
+                print('torneio:')
+                print('p1: ', p1)
+                print('p2: ', p2, '\n')
+
             # executa o crossover e obtém os dois filhos
             # ponto de cruzamento é aleatório
-            # ERRO!!!!
             o1, o2 = crossover(p1, p2, randint(0, min(len(p1), len(p2))))
+
+            if debug:
+                print('crossover:')
+                print('o1: ', o1)
+                print('o2: ', o2, '\n')
 
             # executa a mutação dos dois filhos
             o1 = mutate(o1, m)
             o2 = mutate(o2, m)
 
+            if debug:
+                print('mutacao:')
+                print('o1: ', o1)
+                print('o2: ', o2, '\n')
+
             # adiciona os dois filhos na nova população
             p_nova.append(o1)
             p_nova.append(o2)
+
+            if debug:
+                print('crossover:')
+                print('p_nova: ', p_nova, '\n')
+                print('---------------------------')
         
         # atualiza a população original com a população nova
         p = p_nova
@@ -286,6 +363,7 @@ def run_ga(g, n, k, m, e):
 
 
 if __name__ == "__main__":
+    '''
     n_nodes = 6
     m_edges = 6
     D_max_distance = 4
@@ -301,6 +379,27 @@ if __name__ == "__main__":
                        [0, 0, 1, 0, 3, 0]]
 
     adj_list = utils.get_adjacency_list(distance_matrix)
+    '''
 
-    res = run_ga(1, 200, 50, 0.2, 0)
-    print(res)
+    # porcentagem mínima do número de nodos
+    # que irá gerar o número de clusters
+    # ex.: com n_nodes = 10 e min_cluster_amount = 0.5
+    #      irá gerar de 5 a 10 clusters
+    min_cluster_amount = 0.5
+
+    distance_matrix, adj_list, n_nodes, m_edges = utils.generate_graph('Levi', True)
+
+    # itera o limite superior de max_gen gerações
+    max_gen = 20
+
+    for gen in range(max_gen):
+        # executa o algoritmo genético
+        res = run_ga(gen, 200, 0.8, 0.2, 1, False)
+        
+        print(f'geracao: {gen} --> fitness: {evaluate(res)}')
+        print(f'valor otimo: {res}\n')
+
+        # se atingir o valor ótimo da minimização (fitness == 1), encerra
+        if evaluate(res) == 1:
+            break
+    
