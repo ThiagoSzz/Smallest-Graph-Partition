@@ -13,7 +13,7 @@ import igraph as ig
 
     LINKS:
     https://igraph.org/python/api/latest/   --> documentação igraph
-    https://moodle.inf.ufrgs.br/pluginfile.php/183293/mod_resource/content/1/geneticos.pdf --> slides algoritmos genéticos
+    https://moodle.inf.ufrgs.br/pluginfile.php/183293/mod_resource/content/1/geneticos.pdf   --> slides algoritmos genéticos
 """
 
 def evaluate(individual):
@@ -147,7 +147,7 @@ def mutate(individual, m):
 
 
 def populate(n_ind):
-    """Gera uma população com indivíduos gerados aleatoriamente
+    """Gera uma população com indivíduos randomizados
 
     Args:
         n_ind (num): quantidade de indivíduos a gerar
