@@ -499,8 +499,7 @@ if __name__ == "__main__":
     graph, distance_matrix, adj_list, n_nodes, m_edges = \
     utils.generate_graph('Walther', True)
 
-    for _ in range(10):
-        #            gen   ind   sel   mut   elit   debug
-        res = run_ga(10,   200,  0.20, 0.25, True, 'show_gen')
+    #            gen   ind   sel   mut   elit   debug
+    res = run_ga(10,   200,  0.20, 0.25, True, 'show_gen')
 
-        utils.draw_clustered_graph(graph, res, n_nodes)
+    utils.draw_clustered_graph(graph, res, n_nodes)
