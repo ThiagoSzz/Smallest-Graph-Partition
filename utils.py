@@ -1,5 +1,6 @@
 import igraph as ig
 
+
 def get_adjacency_list(distance_matrix):
     """Obtém a lista de adjacência do grafo a partir de
        uma matriz de distâncias entre os vértices
@@ -45,35 +46,6 @@ def igraph_cluster_to_list(d):
     return set_list
 
 
-def get_path_fitness(v_set, adj_list, distance_matrix):
-    """Calcula o valor da soma das arestas contidas entre
-       os vértices de um cluster
-
-    Args:
-        v_set (lst): cluster
-        adj_list (dict): lista de adjacência dos vértices
-        distance_matrix (lst): matriz contendo as distâncias entre
-                               os vértices
-
-    Returns:
-        int: soma das arestas entre os vértices do cluster
-    """
-
-    fitness = 0
-    visited = list()
-
-    for j in range(len(v_set)):
-        current = v_set[j]
-        visited.append(current)
-
-        for i in adj_list[current]:
-            if (i in v_set) and (current in visited and i in visited):
-                fitness += distance_matrix[current][i]
-                visited.append(i)
-
-    return fitness
-
-
 def generate_graph(type, should_plot):
     """Gera um grafo com n_nodes vértices e n_children filhos por vértice
 
@@ -83,18 +55,48 @@ def generate_graph(type, should_plot):
         should_plot (bool): se deve imprimir o grafo gerado
 
     Returns:
-        lst, dict, int, int: matriz de distâncias, lista de adjacência,
-                             número de vértices e de arestas do grafo gerado
+        Graph, lst, dict, int, int: grafo, matriz de distâncias,
+                                    lista de adjacência, número de vértices
+                                    e de arestas do grafo gerado
     """
 
-    graph = ig.Graph.Famous(type)
+    g = ig.Graph.Famous(type)
+
+    distance_matrix = list((g.get_adjacency()))
+    adj_list = get_adjacency_list(distance_matrix)
+    n_nodes = g.vcount()
+    m_edges = g.ecount()
 
     if should_plot:
-        ig.plot(graph)
-    
-    distance_matrix = list((graph.get_adjacency()))
-    adj_list = get_adjacency_list(distance_matrix)
-    n_nodes = graph.vcount()
-    m_edges = graph.ecount()
+        g.vs['label'] = list(range(n_nodes))
+        g.vs['label_size'] = 12
+        g.vs['color'] = 'tomato'
 
-    return distance_matrix, adj_list, n_nodes, m_edges
+        ig.plot(g)
+
+    return g, distance_matrix, adj_list, n_nodes, m_edges
+
+
+def draw_clustered_graph(g, res, n_nodes):
+    """Desenha o grafo em que os clusters obtidos
+       pelo algoritmo genético são pintados de cores
+       diferentes
+
+    Args:
+        g (Graph): grafo do módulo iGraph
+        res (lst): lista com os clusters do grafo
+        n_nodes (int): número de vértices do grafo
+    """
+
+    col = ig.drawing.colors.RainbowPalette(len(res))
+
+    i = 0
+    for cluster in res:
+        for node_n in range(len(cluster)):
+            g.vs[cluster[node_n]]['color'] = col.get(i)
+        i += 1
+
+    g.vs['label'] = list(range(n_nodes))
+    g.vs['label_size'] = 12
+
+    ig.plot(g)

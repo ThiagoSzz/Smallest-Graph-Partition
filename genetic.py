@@ -1,21 +1,85 @@
 import utils
 import copy
 import igraph as ig
-from math import ceil
-from random import randint
+from random import randint, choice
+
 
 """
     TODO:
     - leitura de dados do arquivo
-    - considerar a distância máxima D entre os vértices (matriz de distâncias)
-    - considerar o tamanho máximo T de subconjuntos
     - otimização: usar sets ao invés de listas
+    - bug: as vezes um vértice aleatório é colocado em um cluster
+           em que não tem vizinhos
+
+    DÚVIDAS:
+    - considerar grafos disconexos?
+    - casos de teste?
+    - podemos usar um grafo gerado aleatoriamente?
+        - se não, o grafo dado terá quantos vértices?
+    - podemos usar um módulo para fazer a partição do grafo (igraph)?
+    - tempo limite de execução?
 
     LINKS:
     https://igraph.org/python/api/latest/   --> documentação igraph
     https://moodle.inf.ufrgs.br/pluginfile.php/183293/mod_resource/content/1/geneticos.pdf   --> slides algoritmos genéticos
     https://igraph.org/c/doc/igraph-Generators.html#igraph_famous   --> tipos de grafos a gerar
 """
+
+
+def is_eligible(individual):
+    """Verifica se a distância máxima entre os vértices de um
+       cluster são menores que a distância máxima permitida
+       (E)
+       Verifica se o tamanho dos clusters é menor que o tamanho
+       máximo permitido
+
+    Args:
+        individual (lst): lista dos clusters do grafo
+
+    Returns:
+        bool: True, caso não tenha nenhum cluster com distance > D_max_distance (E)
+                    caso para todos os clusters len(cluster) < T_set_size
+              False, caso contrário
+    """
+
+    eligibility = True
+
+    # itera os clusters de um indivíduo
+    for v_set in individual:
+        distance = 0
+        visited = list()
+        
+        # verifica se é menor que o tamanho máximo permitido
+        if len(v_set) <= T_set_size:
+            # itera os vértices de um cluster
+            for j in range(len(v_set)):
+                current = v_set[j]
+                visited.append(current)
+
+                # itera os vizinhos do vértice
+                for i in adj_list[current]:
+                    # se o vizinho estiver no cluster
+                    # e se o vértice e seu vizinho estão na lista de vértices visitados
+                    if (i in v_set) and (current in visited and i in visited):
+                        # soma a distância à distância total entre os vértices do cluster
+                        # e adiciona o vizinho à lista de vértices visitados
+                        distance += distance_matrix[current][i]
+                        visited.append(i)
+
+            # se a distância total entre os vértices do cluster
+            # for maior que o permitido
+            if distance > D_max_distance:
+                # se sim, retorna falso
+                eligibility = False
+                break
+        else:
+            #print(v_set, len(v_set))
+            # se não, retorna falso
+            eligibility = False
+            break
+
+    return eligibility
+
 
 def evaluate(individual):
     """Função de avaliação de um indivíduo
@@ -27,7 +91,12 @@ def evaluate(individual):
         int: quantidade de clusters do grafo
     """
 
-    return len(individual)
+    if not is_eligible(individual):
+        fitness = float('inf')
+    else:
+        fitness = len(individual)
+
+    return fitness
 
 
 def tournament(participants):
@@ -57,13 +126,16 @@ def tournament(participants):
     return best_individual
 
 
-def crossover(parent1, parent2, index):
-    """
+def crossover(parent1, parent2):
+    """Agrupa um vértice de um cluster do primeiro pai
+       com um vértice de um cluster do segundo pai e
+       vice-versa. É necessário que os vértices
+       tenham vizinhos no cluster para o qual forem trocados,
+       para manter a factibilidade da solução.
 
     Args:
         parent1 (lst): indivíduo-pai 1
         parent2 (lst): indivíduo-pai 2
-        index (num): inteiro que representa o índice do crossover
     
     Returns:
         <list, list>: indivíduos-filho 1 e 2
@@ -73,7 +145,7 @@ def crossover(parent1, parent2, index):
     new_parent1 = copy.deepcopy(parent1)
     new_parent2 = copy.deepcopy(parent2)
 
-    if len(parent1) == 1 and len(parent2) == 1:
+    if len(parent1) != 1 and len(parent2) != 1:
         # escolhe um cluster aleatório do primeiro pai
         cross_pos1 = randint(0, len(parent1)-1)
         cross_cluster1 = parent1[cross_pos1]
@@ -117,6 +189,8 @@ def crossover(parent1, parent2, index):
                 if value in cluster:
                     cluster.remove(value)
 
+        # adiciona o cluster da troca nos pais
+        # e remove os clusters vazios
         new_parent1.append(cross_cluster2)
         new_parent1 = list(filter(lambda x: x, new_parent1))
 
@@ -142,8 +216,8 @@ def mutate(individual, m):
     if randint(0, 100)/100 <= m:
         # se o indivíduo não tiver apenas um cluster
         if len(individual) != 1:
-            found_nbr = False
-            mutate_node = None
+            mutate_node_l = list()
+            mutate_pos_l = list()
 
             # procura o primeiro cluster que não contenha algum vizinho
             # de um dos vértices do cluster
@@ -156,19 +230,8 @@ def mutate(individual, m):
                 for node in individual[cluster_pos]:
                     for nbr in adj_list[node]:
                         if nbr not in individual[cluster_pos]:
-                            mutate_node = nbr
-                            mutate_pos = cluster_pos
-
-                            found_nbr = True
-                            break
-
-                    if found_nbr:
-                        break
-
-                if found_nbr:
-                    break
-            
-            found_nbr = False
+                            mutate_node_l.append(nbr)
+                            mutate_pos_l.append(cluster_pos)
 
             # procura o cluster que possui esse vizinho e
             # junta os dois clusters
@@ -178,18 +241,37 @@ def mutate(individual, m):
             #      irá procurar pelo cluster [v3, v4]
             #      em seguida, irá transformar [v1, v2] em [v1, v2, v3, v4]
             #      por fim, irá remover o antigo cluster [v3, v4]
-            for cluster_pos in range(len(individual)):
-                for node in individual[cluster_pos]:
-                    if node == mutate_node:
-                        individual[mutate_pos] += individual[cluster_pos]
-                        individual.pop(cluster_pos)
+            best_ind = copy.deepcopy(individual)
 
-                        found_nbr = True
-                        break
+            if len(mutate_pos_l) != 0:
+                best_list = list()
 
-                if found_nbr:
-                    break
+                i = 0
 
+                while i < len(mutate_pos_l):
+                    mp_i = mutate_pos_l[i]
+                    mn_i = mutate_node_l[i]
+
+                    i += 1
+
+                    found_best = False
+
+                    for cluster_pos in range(len(individual)):
+                        for node in individual[cluster_pos]:
+                            if node == mn_i:
+                                best_ind = copy.deepcopy(individual)
+                                best_ind[mp_i] += best_ind[cluster_pos]
+                                best_ind.pop(cluster_pos)
+
+                                best_list.append(best_ind)
+                                found_best = True
+                                break
+
+                        if found_best:
+                            break
+                
+                individual = choice(best_list)
+    
     return individual
 
 
@@ -228,10 +310,10 @@ def populate(n_ind):
                     g.add_edge(node, nbr)
                     visited.append((nbr, node))
 
-        # efetua a 'clusterização'
-        d = ig.Graph.community_fastgreedy(g, weights=edges_weight)
+        # efetua a segmentação
+        d = ig.Graph.community_edge_betweenness(g, weights=edges_weight)
 
-        cluster_amount = randint(ceil(n_nodes*min_cluster_amount), n_nodes)
+        cluster_amount = randint(int(n_nodes*min_cluster_amount), n_nodes)
         d = d.as_clustering(cluster_amount)
         individual = utils.igraph_cluster_to_list(d)
 
@@ -254,24 +336,45 @@ def selection(participants, k):
         lst: população selecionada
     """
 
+    copy_participants = copy.deepcopy(participants)
+
     sel_participants = list()
+    n_selected = 0
+
+    wait_list = list()
     
     '''print('participants: ')
-    for i in participants:
-        print(i)
+    for i in copy_participants:
+        print(i, evaluate(i))
     print()'''
 
+    # itera k indivíduos
     for _ in range(k):
-        selected = randint(0, len(participants)-1)
-        sel_participants.append(participants[selected])
+        selected = randint(0, len(copy_participants)-1)
+
+        if evaluate(copy_participants[selected]) != float('inf'):
+            # adiciona o indivíduo na lista de selecionados
+            sel_participants.append(copy_participants[selected])
+            n_selected += 1
+        else:
+            wait_list.append(copy_participants[selected])
+
+        # e remove da lista de indivíduos para não selecioná-lo novamente
+        copy_participants.pop(selected)
+
+    for inf_individual in range(len(wait_list)):
+        sel_participants.append(wait_list[inf_individual])
+        n_selected += 1
+
+        if n_selected == k:
+            break
 
     '''print('selected: ')
     for i in sel_participants:
-        print(i)
+        print(i, evaluate(i))
     print()'''
 
     return sel_participants
-
 
 def run_ga(g, n, k, m, e, debug):
     """Executa o algoritmo genético e retorna o indivíduo com o menor número de clusters
@@ -282,7 +385,10 @@ def run_ga(g, n, k, m, e, debug):
         k (float): porcentagem de participantes do torneio
         m (float): probabilidade de mutação (entre 0 e 1, inclusive)
         e (bool): se vai haver elitismo
-        debug (bool): modo debug (mostra os prints)
+        debug (str): modo debug
+                     'all'        --> mostra todos os prints
+                     'show_steps' --> mostra somente o resultado dos passos do algoritmo
+                     'show_gen'   --> mostra somente o resultado obtido em cada geração
 
     Returns:
         lst: melhor indivíduo encontrado
@@ -290,29 +396,31 @@ def run_ga(g, n, k, m, e, debug):
 
     # inicializa a população aleatoriamente
     p = populate(n)
+    n_k = int(len(p)*k)
 
-    if debug:
+    if debug == 'show_steps' or debug == 'all':
         print('populacao:')
         print(p, '\n')
 
     # para cada geração,
-    for _ in range(g):
+    for n_g in range(g):
+        p_nova = list()
+
         if e:
             # se elitismo, inicializa nova população com o melhor indivíduo
             # da população anterior
-            p_nova = list()
             p_nova.append(tournament(p))
-        else:
-            p_nova = []
 
         # enquanto o número de indivíduos da população for menor que "n"
         while len(p_nova) < n:
             # seleciona k% participantes
-            selected_participants = selection(p, int(len(p)*k))
+            selected_participants = selection(p, n_k)
 
-            if debug:
+            if debug == 'show_steps' or debug == 'all':
                 print('selecao:')
-                print(selected_participants, '\n')
+                for i in selected_participants:
+                    print(i, ': ', evaluate(i))
+                print()
 
             # executa dois torneios com os k participantes
             p1 = tournament(selected_participants)
@@ -323,16 +431,16 @@ def run_ga(g, n, k, m, e, debug):
             p_nova_linha.remove(p1)
             p2 = tournament(p_nova_linha)
 
-            if debug:
+            if debug == 'show_steps' or debug == 'all':
                 print('torneio:')
-                print('p1: ', p1)
-                print('p2: ', p2, '\n')
+                print('p1: ', p1, ': ', evaluate(p1))
+                print('p2: ', p2, ': ', evaluate(p2), '\n')
 
             # executa o crossover e obtém os dois filhos
             # ponto de cruzamento é aleatório
-            o1, o2 = crossover(p1, p2, randint(0, min(len(p1), len(p2))))
+            o1, o2 = crossover(p1, p2)
 
-            if debug:
+            if debug == 'show_steps' or debug == 'all':
                 print('crossover:')
                 print('o1: ', o1)
                 print('o2: ', o2, '\n')
@@ -341,7 +449,7 @@ def run_ga(g, n, k, m, e, debug):
             o1 = mutate(o1, m)
             o2 = mutate(o2, m)
 
-            if debug:
+            if debug == 'show_steps' or debug == 'all':
                 print('mutacao:')
                 print('o1: ', o1)
                 print('o2: ', o2, '\n')
@@ -350,26 +458,29 @@ def run_ga(g, n, k, m, e, debug):
             p_nova.append(o1)
             p_nova.append(o2)
 
-            if debug:
-                print('crossover:')
-                print('p_nova: ', p_nova, '\n')
+            if debug == 'show_steps' or debug == 'all':
+                print('p_nova: ')
+                print(p_nova, '\n')
                 print('---------------------------')
         
         # atualiza a população original com a população nova
         p = p_nova
+        
+        # obtém o melhor indivíduo da geração
+        best_ind = tournament(p)
 
-    # retorna o melhor indivíduo da população gerada
-    return tournament(p)
+        if debug == 'show_gen' or debug == 'all':
+            print(f'melhor da geracao {n_g+1}: {best_ind} --> {evaluate(best_ind)}\n')
+            #utils.draw_clustered_graph(graph, best_ind, n_nodes)
+
+    # retorna o melhor indivíduo da última geração calculada
+    return best_ind
 
 
 if __name__ == "__main__":
     '''
     n_nodes = 6
     m_edges = 6
-    D_max_distance = 4
-    T_set_size = 3
-
-    edges_cost = [2, 5, 4, 3, 1, 3]
 
     distance_matrix = [[0, 2, 5, 0, 0, 0],
                        [2, 0, 0, 4, 3, 0],
@@ -381,25 +492,15 @@ if __name__ == "__main__":
     adj_list = utils.get_adjacency_list(distance_matrix)
     '''
 
-    # porcentagem mínima do número de nodos
-    # que irá gerar o número de clusters
-    # ex.: com n_nodes = 10 e min_cluster_amount = 0.5
-    #      irá gerar de 5 a 10 clusters
-    min_cluster_amount = 0.5
+    D_max_distance = 3
+    T_set_size = 4
+    min_cluster_amount = 0.8
 
-    distance_matrix, adj_list, n_nodes, m_edges = utils.generate_graph('Levi', True)
+    graph, distance_matrix, adj_list, n_nodes, m_edges = \
+    utils.generate_graph('Walther', True)
 
-    # itera o limite superior de max_gen gerações
-    max_gen = 20
+    for _ in range(10):
+        #            gen   ind   sel   mut   elit   debug
+        res = run_ga(10,   200,  0.20, 0.25, True, 'show_gen')
 
-    for gen in range(max_gen):
-        # executa o algoritmo genético
-        res = run_ga(gen, 200, 0.8, 0.2, 1, False)
-        
-        print(f'geracao: {gen} --> fitness: {evaluate(res)}')
-        print(f'valor otimo: {res}\n')
-
-        # se atingir o valor ótimo da minimização (fitness == 1), encerra
-        if evaluate(res) == 1:
-            break
-    
+        utils.draw_clustered_graph(graph, res, n_nodes)
