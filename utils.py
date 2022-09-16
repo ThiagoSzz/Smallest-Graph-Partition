@@ -1,4 +1,5 @@
 import igraph as ig
+import numpy as np
 
 
 def get_adjacency_list(distance_matrix):
@@ -46,38 +47,54 @@ def igraph_cluster_to_list(d):
     return set_list
 
 
-def generate_graph(type, should_plot):
-    """Gera um grafo com n_nodes vértices e n_children filhos por vértice
+def create_graph(n_nodes, adj_list):
+    # gera um grafo com n_nodes vértices
+    g = ig.Graph(n=n_nodes)
+
+    # adiciona as arestas ao grafo
+    visited = list()
+
+    for node in range(len(adj_list)):
+        for nbr in adj_list[node]:
+            if (node, nbr) not in visited:
+                g.add_edge(node, nbr)
+                visited.append((nbr, node))
+
+    return g
+
+def generate_graph(n_nodes, distance_matrix, edges_cost, should_plot):
+    """Gera o grafo com n_nodes vértices a partir de sua
+       matriz de distâncias. Permite mostrar o grafo.
 
     Args:
-        type (str): tipo de grafo a ser gerado
-                    possíveis valores: https://igraph.org/c/doc/igraph-Generators.html#igraph_famous
-        should_plot (bool): se deve imprimir o grafo gerado
+        n_nodes (int): número de vértices do grafo
+        distance_matrix (lst): matriz de distâncias do grafo
+        edges_cost (lst): lista contendo os pesos das arestas por BFS
+        should_plot (bool): True, para 'plotar' o grafo
+                            False, caso contrário
 
     Returns:
-        Graph, lst, dict, int, int: grafo, matriz de distâncias,
-                                    lista de adjacência, número de vértices
-                                    e de arestas do grafo gerado
+        Graph: grafo do módulo iGraph
     """
 
-    g = ig.Graph.Famous(type)
-
-    distance_matrix = list((g.get_adjacency()))
     adj_list = get_adjacency_list(distance_matrix)
-    n_nodes = g.vcount()
-    m_edges = g.ecount()
+
+    g = create_graph(n_nodes, adj_list)
 
     if should_plot:
-        g.vs['label'] = list(range(n_nodes))
+        g.vs['label'] = [x+1 for x in list(range(n_nodes))]
         g.vs['label_size'] = 12
         g.vs['color'] = 'tomato'
 
+        g.es['weight'] = edges_cost
+        g.es['label'] = g.es['weight']
+
         ig.plot(g)
 
-    return g, distance_matrix, adj_list, n_nodes, m_edges
+    return g, adj_list
 
 
-def draw_clustered_graph(g, res, n_nodes):
+def draw_clustered_graph(g, res, n_nodes, edges_cost):
     """Desenha o grafo em que os clusters obtidos
        pelo algoritmo genético são pintados de cores
        diferentes
@@ -86,6 +103,7 @@ def draw_clustered_graph(g, res, n_nodes):
         g (Graph): grafo do módulo iGraph
         res (lst): lista com os clusters do grafo
         n_nodes (int): número de vértices do grafo
+        edges_cost (lst): lista contendo os pesos das arestas por BFS
     """
 
     col = ig.drawing.colors.RainbowPalette(len(res))
@@ -96,7 +114,54 @@ def draw_clustered_graph(g, res, n_nodes):
             g.vs[cluster[node_n]]['color'] = col.get(i)
         i += 1
 
-    g.vs['label'] = list(range(n_nodes))
+    g.vs['label'] = [x+1 for x in list(range(n_nodes))]
     g.vs['label_size'] = 12
 
+    g.es['weight'] = edges_cost
+    g.es['label'] = g.es['weight']
+
     ig.plot(g)
+
+
+def read_instance(file_name):
+    try:
+        # abre o arquivo
+        with open(file_name) as file:
+            # lê os valores n, m, D e T do grafo
+            n, m, D, T = file.readline().split()
+            n, m, D, T = int(n), int(m), int(D), int(T)
+
+            # lê os pesos das arestas do grafo
+            costs = list()
+
+            for _ in range(m):
+                line = file.readline().split()
+                costs_vec = list()
+
+                for i in range(3):
+                    costs_vec.append(int(line[i]))
+
+                costs.append(costs_vec)
+
+            # transfere os pesos das arestas para uma lista
+            edges_weight = list()
+
+            for i in costs:
+                edges_weight.append(i[2])
+
+            # gera a matriz de distâncias a partir dos pesos das arestas
+            # obs.: considera a distância de vértices não-vizinhos como zero
+            distance_matrix = np.zeros((n, n), dtype=int)
+
+            for vec in costs:
+                distance_matrix[vec[0]-1][vec[1]-1] = vec[2]
+                distance_matrix[vec[1]-1][vec[0]-1] = vec[2]
+
+            return n, m, D, T, distance_matrix, edges_weight
+    
+    except:
+        print(Exception('Erro ao abrir o arquivo ' + file_name))
+
+
+def inc_by_1(ind):
+    return [[x+1 for x in y] for y in ind]
