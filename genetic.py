@@ -1,6 +1,8 @@
 import utils
 import copy
 import igraph as ig
+import time
+import sys
 from random import randint, choice
 
 
@@ -320,9 +322,7 @@ def populate(n_ind):
 
         # efetua a segmentação
         vd = ig.Graph.community_fastgreedy(g, weights=edges_weight)
-
-        cluster_amount = randint(mca_nn, n_nodes)
-        vd = vd.as_clustering(cluster_amount)
+        vd = vd.as_clustering(randint(mca_nn, n_nodes))
         individual = utils.igraph_cluster_to_list(vd)
 
         # verifica se o indivíduo gerado já existe
@@ -489,26 +489,50 @@ if __name__ == "__main__":
     min_cluster_amount = 0.8
 
     # nome do arquivo com informações do grafo
-    file_name = 'instance_20_100_10_5.dat'
+    instance_list = ['instance_6_6_4_3.dat',         'instance_20_30_20_3.dat',
+                     'instance_20_100_10_5.dat',     'instance_50_75_50_5.dat',
+                     'instance_50_750_10_5.dat',     'instance_100_350_50_10.dat',
+                     'instance_100_1000_25_15.dat',  'instance_250_3000_20_20.dat',
+                     'instance_250_7500_10_25.dat',  'instance_500_2500_50_50.dat',
+                     'instance_500_10000_15_50.dat', 'instance_1000_10000_25_50.dat',
+                     'instance_1000_50000_10_100.dat']
 
-    # lê o arquivo da instância e coleta os dados
-    n_nodes, m_edges, D, T, distance_matrix, edges_w = \
-    utils.read_instance('problema1-instancias/' + file_name)
+    for fn in instance_list:
+        try:
+            with open('results.txt', 'a') as file_res:
+                # lê o arquivo da instância e coleta os dados
+                n_nodes, m_edges, D, T, distance_matrix, edges_w = \
+                utils.read_instance('problema1-instancias/' + fn)
 
-    # gera o grafo a partir da instância lida
-    graph, adj_list = utils.generate_graph(n_nodes, distance_matrix, edges_w, True)
+                # gera e plota o grafo a partir da instância lida
+                graph, adj_list = utils.generate_graph(n_nodes, distance_matrix, edges_w, False)
 
-    # variáveis do algoritmo genético
-    n_gen = n_nodes
-    n_ind = n_nodes*(n_nodes-1)
-    selection_amount = 0.20
-    mutation_chance = 0.25
-    elitism = False
+                # variáveis do algoritmo genético
+                n_gen = n_nodes
+                n_ind = n_nodes*20
+                selection_amount = 0.20
+                mutation_chance = 0.25
+                elitism = False
 
-    print(f'# Algoritmo genetico com {n_ind} individuos e {n_gen} geracoes.\n')
-    # algoritmo genético
-    res_ind = run_ga(n_gen, n_ind, selection_amount, mutation_chance, elitism, 'show_gen')
+                print(f'# Algoritmo genetico com {n_ind} individuos e {n_gen} geracoes.\n')
+                time_start = time.time()
 
-    # plota o grafo com os vértices coloridos de acordo
-    # com o resultado da partição
-    utils.draw_clustered_graph(graph, res_ind, n_nodes, edges_w)
+                # algoritmo genético
+                res_ind = run_ga(n_gen, n_ind, selection_amount, mutation_chance, elitism, 'show_gen')
+                
+                # calcula o tempo levado para executar o algoritmo genético
+                time_elapsed = (int(time.time()) - int(time_start))/60
+
+                # plota o grafo com os vértices coloridos de acordo
+                # com o resultado da partição
+                #utils.draw_clustered_graph(graph, res_ind, n_nodes, edges_w)
+
+                file_res.write(f'Instância \'{fn}\'\n')
+                file_res.write(f'n={n_nodes}, m={m_edges}, D={D}, T={T}\n')
+                file_res.write(f'Resultado com {n_gen} gerações e {n_ind} indivíduos:\n')
+                file_res.write(f'{utils.inc_by_1(res_ind)} --> fitness {evaluate(res_ind)}\n')
+                file_res.write('Tempo de execução: {:.3f} minutos\n\n'.format(time_elapsed))
+
+        except Exception:
+            exc_type = sys.exc_info()
+            print(f'Falhou: {exc_type.__name__}')
