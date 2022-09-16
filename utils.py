@@ -48,6 +48,17 @@ def igraph_cluster_to_list(d):
 
 
 def create_graph(n_nodes, adj_list):
+    """Cria o grafo com n_nodes vértices a partir
+       de sua lista de adjacência
+
+    Args:
+        n_nodes (int): número de vértices do grafo
+        adj_list (dict): lista de adjacência do grafo
+
+    Returns:
+        Graph: grafo do módulo iGraph
+    """
+
     # gera um grafo com n_nodes vértices
     g = ig.Graph(n=n_nodes)
 
@@ -61,6 +72,7 @@ def create_graph(n_nodes, adj_list):
                 visited.append((nbr, node))
 
     return g
+
 
 def generate_graph(n_nodes, distance_matrix, edges_cost, should_plot):
     """Gera o grafo com n_nodes vértices a partir de sua
@@ -124,6 +136,21 @@ def draw_clustered_graph(g, res, n_nodes, edges_cost):
 
 
 def read_instance(file_name):
+    """Lê o arquivo de uma instância do problema e
+       coleta os dados necessários para resolver o
+       problema. São eles:
+       n -> número de vértices
+       m -> número de arestas
+       D -> distância máxima entre os vértices de um subconjunto
+       T -> número máximo de vértices em um subconjunto
+
+    Args:
+        file_name (str): nome do arquivo
+
+    Returns:
+        int, int, int, int, lst, lst: dados coletados
+    """
+
     try:
         # abre o arquivo
         with open(file_name) as file:
@@ -164,4 +191,18 @@ def read_instance(file_name):
 
 
 def inc_by_1(ind):
+    """Incrementa os valores dos labels dos
+       vértices em 1. Isso por que o processamento
+       das listas, matrizes e dicionários é feito de
+       '0' a 'n-1', porém a definição do problema
+       especifica que os vértices são numerados
+       de '1' a 'n'.
+
+    Args:
+        ind (lst): lista que representa o indivíduo (subconjuntos)
+
+    Returns:
+        lst: lista entrada com valores incrementados em 1
+    """
+
     return [[x+1 for x in y] for y in ind]

@@ -304,6 +304,8 @@ def populate(n_ind):
     min_edge_cost = 1
     max_edge_cost = 25
 
+    mca_nn = int(n_nodes*min_cluster_amount)
+
     # cria o grafo com n_nodes vértices a partir de
     # sua lista de adjacência
     g = utils.create_graph(n_nodes, adj_list)
@@ -317,11 +319,11 @@ def populate(n_ind):
             edges_weight.append(randint(min_edge_cost, max_edge_cost))
 
         # efetua a segmentação
-        d = ig.Graph.community_fastgreedy(g, weights=edges_weight)
+        vd = ig.Graph.community_fastgreedy(g, weights=edges_weight)
 
-        cluster_amount = randint(int(n_nodes*min_cluster_amount), n_nodes)
-        d = d.as_clustering(cluster_amount)
-        individual = utils.igraph_cluster_to_list(d)
+        cluster_amount = randint(mca_nn, n_nodes)
+        vd = vd.as_clustering(cluster_amount)
+        individual = utils.igraph_cluster_to_list(vd)
 
         # verifica se o indivíduo gerado já existe
         # antes de adicioná-lo à população
@@ -371,6 +373,7 @@ def selection(participants, k):
             break
 
     return sel_participants
+
 
 def run_ga(g, n, k, m, e, debug='none'):
     """Executa o algoritmo genético e retorna o indivíduo com o menor número de clusters
@@ -496,12 +499,13 @@ if __name__ == "__main__":
     graph, adj_list = utils.generate_graph(n_nodes, distance_matrix, edges_w, True)
 
     # variáveis do algoritmo genético
-    n_gen = int((n_nodes + min(D, T))/2)
-    n_ind = 300
+    n_gen = n_nodes
+    n_ind = n_nodes*(n_nodes-1)
     selection_amount = 0.20
     mutation_chance = 0.25
     elitism = False
 
+    print(f'# Algoritmo genetico com {n_ind} individuos e {n_gen} geracoes.\n')
     # algoritmo genético
     res_ind = run_ga(n_gen, n_ind, selection_amount, mutation_chance, elitism, 'show_gen')
 
